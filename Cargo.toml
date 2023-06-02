@@ -1,0 +1,16 @@
+[package]
+name = "hello"
+version = "0.1.0"
+edition = "2021" 
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bls12_381 = "0.8.0"  # BLS12-381 BLS12-381椭圆曲线对的库
+pairing-plus = { git = "https://github.com/algorand/pairing-plus"}
+ff-zeroize = { version = "0.6.3", features = ["derive"]}
+sha2 = "0.8"
+bigint = { version = "4", default-features = false }
+
+[features]
+group_switched = []  # 用于开启分组签名的特性, gpt将其称之为群切换功能
