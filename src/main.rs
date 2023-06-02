@@ -269,14 +269,11 @@ fn paramgen_from_alpha(
 
 // @notice 必须通过cargo run来运行, 否则无法编译通过
 fn main() {
-    // @title 该部分用来测试check_ciphersuite函数
-    // let ciphersuite: Ciphersuite = 0;
-    // let is_supported = check_ciphersuite(ciphersuite);
-    // println!("Is ciphersuite supported? {}", is_supported);
-    let n = 16usize;
-    let update_index = n / 2;
+    // @title 参数生成
+    let n = 16usize;  // n代表生成的证明长度
+    let update_index = n / 2; 
 
-    // generate the parameters, and performs pre_computation
+    // 生成公共变量, 并执行预先计算(目的在于算出验证环节所需的公共参数gt^{alpha^{n+1}})
     let (mut prover_params, verifier_params) =
         paramgen_from_seed("This is Leo's Favourite very very long Seed", 0, n).unwrap();
     println!("prover_params: {:?}", prover_params);
