@@ -78,22 +78,29 @@ pub fn check_ciphersuite(csid: Ciphersuite) -> bool {
     VALID_CIPHERSUITE.contains(&csid) // @dev 这里就是判断输入的u8变量是否为0u8
 }
 
-/// A wrapper of `hash_to_field` that outputs `Fr`s instead of `FrRepr`s.
-/// hash_to_field_pointproofs use SHA 512 to hash a blob into a non-zero field element
+// @title 实现了一个'hash_to_field'的wrapper, 将输出由'FrRepr'类型转变为'Fr'类型
+// @dev 该函数使用SHA512算法将一个二进制数据块blob(Blob类型即一个加了新方法的u8)转变为一个非0的域元素
 pub(crate) fn hash_to_field_pointproofs<Blob: AsRef<[u8]>>(input: Blob) -> Fr {
-    // the hash_to_field_repr_pointproofs should already produce a valid Fr element
-    // so it is safe to unwrap here
+    // @dev hash_to_field_repr_pointproofs函数将生成一个有效的FrRepr类型的元素, 调用from_repr(其本质是一个trait)方法;
+    //      将其由FrRepr转变为Fr类型
+    // @dev unwarp方法用于从Option或Result类型中直接取出值(Option为取Some中的值;Result为取Ok中的值), 如果是None或Err, 则会panic
     Fr::from_repr(hash_to_field_repr_pointproofs(input.as_ref())).unwrap()
 }
 
-/// Hashes a blob into a non-zero field element.
-/// hash_to_field_pointproofs use SHA 512 to hash a blob into a non-zero field element.
+// @title 实现了一个'hash_to_field_repr_pointproofs'函数, 将一个二进制数据块Blob转变为一个'FrRepr'类型的非0的域元素
+// @dev 该函数使用SHA512算法将一个二进制数据块blob(Blob类型即一个加了新方法的u8)转变为一个非0的域元素
 pub(crate) fn hash_to_field_repr_pointproofs<Blob: AsRef<[u8]>>(input: Blob) -> FrRepr {
     let mut hasher = Sha512::new();
-    hasher.input(input);
+    hasher.input(input);  // Sha512哈希化
     let hash_output = hasher.result();
-    let mut t = os2ip_mod_p(&hash_output);
-
+    let mut t = os2ip_mod_p(&hash_output);  // 讲一个&[u8]类型的数据转化为一个FrRepr类型的数据
+    
+    println!("FrRepr: {:?}", t.as_ref());  // @notice .as_ref将原始值转换为引用数组, 调用println!输出结果本质不变; 
+    // @notice 为什么必须使用.as_ref(): t是一个FrRepr类型变量, 是一个结构体, 而非数组类型, 默认情况下, Rust不为结构体类型提供数组形式的输出;
+    //                                 println!("FrRepr:{。?}", t)中, '{:?}'是格式化字符串的一部分, 用于调试格式打印变量的内容;
+    //                                 对于结构体, 其只打印他们的字段和值, 而非以数组的形式打印;
+    //                                 所以对于t这个FrRepr类型变量, 需要将其转换为一个引用数组, 这样就可以以数组的形式打印了.
+    
     // if we get 0, return 1
     // this should not happen in practise
     if t == FrRepr([0, 0, 0, 0]) {
@@ -104,7 +111,7 @@ pub(crate) fn hash_to_field_repr_pointproofs<Blob: AsRef<[u8]>>(input: Blob) -> 
 
 /// this is Pointproofs's Octect String to Integer Primitive (os2ip) function
 /// https://tools.ietf.org/html/rfc8017#section-4
-/// the input is a 64 bytes array, and the output is between 0 and p-1
+/// 输入是一个8bits, 64bytes(字节)的数组, 输出是介于 0 and p-1 的非负整数
 /// i.e., it performs mod operation by default.
 pub(crate) fn os2ip_mod_p(oct_str: &[u8]) -> FrRepr {
     // "For the purposes of this document, and consistent with ASN.1 syntax,
@@ -126,22 +133,23 @@ pub(crate) fn os2ip_mod_p(oct_str: &[u8]) -> FrRepr {
     //  ...  + x_1 256 + x_0.
     // 3.  Output x. "
 
-    let r_sec = U512::from(oct_str);
+    // @dev 将u8这个八进制字符串表示的字节数组, 转化为一个自定义的U512类型变量, 其实一个8位的无符号整数，可以表示0~2^8-1的整数取值
+    let r_sec = U512::from(oct_str);  
 
-    // hard coded modulus p
-    let p = U512::from([
+    // @dev 定义硬编码的素数模数p
+    let p = U512::from([  // 64位, 每位(比如0xED)是8位字节(byte), 是一个整体的极大质数
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0x73, 0xED, 0xA7, 0x53, 0x29, 0x9D, 0x7D, 0x48, 0x33, 0x39, 0xD8, 0x08, 0x09, 0xA1,
         0xD8, 0x05, 0x53, 0xBD, 0xA4, 0x02, 0xFF, 0xFE, 0x5B, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
         0x00, 0x00, 0x01,
     ]);
-    // t = r % p
+    // @dev 对导入的已经转变为U512类型变量的oct_str(此时为r_sec), 执行取模操作: t = r % p
     let t_sec = r_sec.rem(p);
 
     // convert t from a U512 into a primefield object s
-    let mut tslide: [u8; 64] = [0; 64];
-    let bytes: &mut [u8] = tslide.as_mut();
-    t_sec.to_big_endian(bytes);
+    let mut tslide: [u8; 64] = [0; 64];  // @dev 这里[u8; 64] = [0; 64]的作用是创建一个64bit的u8类型的数组, 并将其全初始化为0
+    let bytes: &mut [u8] = tslide.as_mut();  // @dev 这里是将tslide转变为可变引用类型&mut[u8], 将其赋值给bytes
+    t_sec.to_big_endian(bytes);  // @dev 将t_sec由U512类型转换为bytes类型, 且存进bytes(to_big_endian()方法应用过程尚不清楚)
 
     FrRepr([
         u64::from_be_bytes([
@@ -191,7 +199,7 @@ pub fn paramgen_from_seed<Blob: AsRef<[u8]>>(
     ))
 }
 
-/// BLS::pairing_product的包装器(wrapper)
+/// @title BLS::pairing_product的包装器(wrapper)
 #[cfg(not(feature = "group_switched"))]
 pub(crate) fn pointproofs_pairing(p1: PointproofsG1Affine, q1: PointproofsG2Affine) -> Fq12 {
     Bls12::pairing(p1, q1)  // @dev 这里pairing函数的返回值Fqk在前面有定义, type Fqk = Fq12, 即Fqk就是Fq12
